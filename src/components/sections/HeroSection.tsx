@@ -1,4 +1,5 @@
 import AnimateIn from '../AnimateIn';
+import { Link } from 'react-router-dom';
 
 export default function HeroSection() {
   return (
@@ -41,9 +42,12 @@ export default function HeroSection() {
 
         <AnimateIn delay={0.6}>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <button className="bg-gradient-accent text-white px-8 py-4 rounded-2xl shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 font-medium">
+            <Link 
+              to="/journal" 
+              className="bg-gradient-accent text-white px-8 py-4 rounded-2xl shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 font-medium inline-block"
+            >
               Start Your Journey / यात्रा शुरू करें
-            </button>
+            </Link>
             <button className="border-2 border-accent-gradient-end bg-transparent text-foreground px-8 py-4 rounded-2xl hover:bg-gradient-accent hover:text-white hover:border-transparent transition-all duration-300 font-medium">
               Learn More / और जानें
             </button>
