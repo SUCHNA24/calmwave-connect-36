@@ -30,7 +30,7 @@ export default function Navbar() {
             <Link
               key={item.href}
               to={item.href}
-              className="flex items-center space-x-1 text-slate-900 hover:text-primary transition-colors duration-300 dark:text-white dark:hover:text-primary-glow font-semibold"
+              className="flex items-center space-x-1 text-black hover:text-primary transition-colors duration-300 dark:text-white dark:hover:text-primary-glow font-bold px-2 py-1 rounded-lg hover:bg-white/20 dark:hover:bg-white/10"
             >
               <item.icon className="w-4 h-4" />
               <span className="font-body">{item.label}</span>
@@ -50,7 +50,7 @@ export default function Navbar() {
         <div className="md:hidden flex items-center space-x-2">
           <ThemeToggle />
           <button
-            className="p-2 text-slate-900 hover:text-primary transition-colors dark:text-white dark:hover:text-primary-glow font-semibold"
+            className="p-2 text-black hover:text-primary transition-colors dark:text-white dark:hover:text-primary-glow font-bold rounded-lg hover:bg-white/20 dark:hover:bg-white/10"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
           >
             {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -66,7 +66,7 @@ export default function Navbar() {
               <Link
                 key={item.href}
                 to={item.href}
-                className="flex items-center space-x-2 p-2 text-slate-900 hover:text-primary transition-colors duration-300 dark:text-white dark:hover:text-primary-glow font-semibold"
+                className="flex items-center space-x-2 p-2 text-black hover:text-primary transition-colors duration-300 dark:text-white dark:hover:text-primary-glow font-bold rounded-lg hover:bg-white/20 dark:hover:bg-white/10"
                 onClick={() => setIsMenuOpen(false)}
               >
                 <item.icon className="w-4 h-4" />
