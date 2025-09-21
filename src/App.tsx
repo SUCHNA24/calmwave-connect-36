@@ -11,6 +11,8 @@ import CrisisPage from "./pages/CrisisPage";
 import JournalPage from "./pages/JournalPage";
 import ResourcesPage from "./pages/ResourcesPage";
 import SupportPage from "./pages/SupportPage";
+import AuthPage from "./pages/AuthPage";
+import ProfilePage from "./pages/ProfilePage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +26,8 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<HomePage />} />
+            <Route path="/auth" element={<AuthPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/mood" element={<MoodPage />} />
             <Route path="/crisis" element={<CrisisPage />} />

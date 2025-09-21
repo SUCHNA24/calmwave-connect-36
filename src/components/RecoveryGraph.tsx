@@ -1,39 +1,59 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, Calendar, BarChart3 } from 'lucide-react';
+import { TrendingUp, Calendar, BarChart3, Target, Award, Zap } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-
-interface DayProgress {
-  day: string;
-  percentage: number;
-  date: string;
-}
+import { useWeeklyRecoveryData, useRecoveryEntries, useRecoveryGoals, useRecoveryMilestones } from '../hooks/useRecoveryTracking';
+import { Button } from './ui/button';
 
 interface RecoveryGraphProps {
   currentProgress: number;
 }
 
 const RecoveryGraph = ({ currentProgress }: RecoveryGraphProps) => {
-  const [weeklyData, setWeeklyData] = useState<DayProgress[]>([
-    { day: 'Mon', percentage: 85, date: '2024-01-15' },
-    { day: 'Tue', percentage: 75, date: '2024-01-16' },
-    { day: 'Wed', percentage: 90, date: '2024-01-17' },
-    { day: 'Thu', percentage: 60, date: '2024-01-18' },
-    { day: 'Fri', percentage: 95, date: '2024-01-19' },
-    { day: 'Sat', percentage: 70, date: '2024-01-20' },
-    { day: 'Today', percentage: currentProgress, date: new Date().toISOString().split('T')[0] }
-  ]);
+  const { weeklyData, isLoading: weeklyLoading } = useWeeklyRecoveryData();
+  const { recoveryEntries } = useRecoveryEntries();
+  const { recoveryGoals } = useRecoveryGoals();
+  const { recoveryMilestones } = useRecoveryMilestones();
+  const [showDetails, setShowDetails] = useState(false);
 
-  useEffect(() => {
-    setWeeklyData(prev => 
-      prev.map((day, index) => 
-        index === prev.length - 1 ? { ...day, percentage: currentProgress } : day
-      )
+  // Calculate statistics
+  const averageProgress = weeklyData.length > 0 
+    ? Math.round(weeklyData.reduce((sum, day) => sum + day.percentage, 0) / weeklyData.length)
+    : 0;
+
+  const completedGoals = recoveryGoals.filter(goal => goal.is_completed).length;
+  const activeGoals = recoveryGoals.filter(goal => !goal.is_completed).length;
+  const recentMilestones = recoveryMilestones.slice(0, 3);
+  
+  // Calculate streak (consecutive days with entries)
+  const calculateStreak = () => {
+    if (recoveryEntries.length === 0) return 0;
+    
+    const sortedEntries = [...recoveryEntries].sort((a, b) => 
+      new Date(b.entry_date).getTime() - new Date(a.entry_date).getTime()
     );
-  }, [currentProgress]);
+    
+    let streak = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    for (let i = 0; i < sortedEntries.length; i++) {
+      const entryDate = new Date(sortedEntries[i].entry_date);
+      entryDate.setHours(0, 0, 0, 0);
+      
+      const expectedDate = new Date(today);
+      expectedDate.setDate(today.getDate() - i);
+      
+      if (entryDate.getTime() === expectedDate.getTime()) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    
+    return streak;
+  };
 
-  const averageProgress = Math.round(
-    weeklyData.reduce((sum, day) => sum + day.percentage, 0) / weeklyData.length
-  );
+  const currentStreak = calculateStreak();
 
   const getBarColor = (percentage: number) => {
     if (percentage >= 80) return 'bg-green-500';
@@ -49,13 +69,39 @@ const RecoveryGraph = ({ currentProgress }: RecoveryGraphProps) => {
     return 'Needs Attention';
   };
 
+  if (weeklyLoading) {
+    return (
+      <Card className="glass-card">
+        <CardContent className="p-6">
+          <div className="animate-pulse">
+            <div className="h-4 bg-muted rounded w-1/3 mb-4"></div>
+            <div className="h-32 bg-muted rounded mb-4"></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="h-16 bg-muted rounded"></div>
+              <div className="h-16 bg-muted rounded"></div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="glass-card">
       <CardHeader>
-        <CardTitle className="text-xl font-heading flex items-center">
-          <BarChart3 className="w-6 h-6 text-secondary mr-2" />
-          Weekly Recovery Progress
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-xl font-heading flex items-center">
+            <BarChart3 className="w-6 h-6 text-secondary mr-2" />
+            Weekly Recovery Progress
+          </CardTitle>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowDetails(!showDetails)}
+          >
+            {showDetails ? 'Hide Details' : 'Show Details'}
+          </Button>
+        </div>
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <TrendingUp className="w-4 h-4 text-green-500" />
@@ -97,6 +143,9 @@ const RecoveryGraph = ({ currentProgress }: RecoveryGraphProps) => {
                 <span className="text-xs text-muted-foreground">
                   {day.percentage}%
                 </span>
+                {day.entry && (
+                  <div className="w-2 h-2 bg-green-500 rounded-full" title="Entry logged" />
+                )}
               </div>
             ))}
           </div>
@@ -115,17 +164,68 @@ const RecoveryGraph = ({ currentProgress }: RecoveryGraphProps) => {
             </div>
             <div className="p-3 bg-muted/50 rounded-lg">
               <div className="flex items-center space-x-2 mb-1">
-                <TrendingUp className="w-4 h-4 text-secondary" />
-                <span className="text-sm font-heading font-medium text-foreground">Best Day</span>
+                <Zap className="w-4 h-4 text-secondary" />
+                <span className="text-sm font-heading font-medium text-foreground">Current Streak</span>
               </div>
-              <p className="text-lg font-bold text-secondary">
-                {Math.max(...weeklyData.slice(0, -1).map(d => d.percentage))}%
-              </p>
+              <p className="text-lg font-bold text-secondary">{currentStreak} days</p>
               <p className="text-xs text-muted-foreground font-body">
-                Keep up the momentum!
+                {currentStreak > 0 ? 'Keep it up!' : 'Start your streak today!'}
               </p>
             </div>
           </div>
+
+          {/* Detailed Stats - Show when expanded */}
+          {showDetails && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 bg-muted/50 rounded-lg">
+                  <div className="flex items-center space-x-2 mb-1">
+                    <Target className="w-4 h-4 text-green-500" />
+                    <span className="text-sm font-heading font-medium text-foreground">Goals Completed</span>
+                  </div>
+                  <p className="text-lg font-bold text-green-500">{completedGoals}</p>
+                  <p className="text-xs text-muted-foreground font-body">
+                    {activeGoals} active goals
+                  </p>
+                </div>
+                <div className="p-3 bg-muted/50 rounded-lg">
+                  <div className="flex items-center space-x-2 mb-1">
+                    <Award className="w-4 h-4 text-yellow-500" />
+                    <span className="text-sm font-heading font-medium text-foreground">Recent Milestones</span>
+                  </div>
+                  <p className="text-lg font-bold text-yellow-500">{recentMilestones.length}</p>
+                  <p className="text-xs text-muted-foreground font-body">
+                    Achievements unlocked
+                  </p>
+                </div>
+              </div>
+
+              {/* Recent Milestones */}
+              {recentMilestones.length > 0 && (
+                <div className="p-4 bg-gradient-accent/10 border border-accent/20 rounded-lg">
+                  <h4 className="font-heading font-semibold text-foreground mb-3 flex items-center">
+                    <Award className="w-4 h-4 text-accent mr-2" />
+                    Recent Achievements
+                  </h4>
+                  <div className="space-y-2">
+                    {recentMilestones.map((milestone) => (
+                      <div key={milestone.id} className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-body text-foreground font-medium">
+                            {milestone.title}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(milestone.achieved_date).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="text-2xl">🏆</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Motivational Message */}
           <div className="p-4 bg-gradient-primary/10 border border-primary/20 rounded-lg">

@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { Phone, User, Stethoscope, Pill, MessageCircle, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Phone, User, Stethoscope, Pill, MessageCircle, ChevronRight, AlertTriangle, Target, Calendar } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import ParticleCursor from '../components/ParticleCursor';
 import AnimateIn from '../components/AnimateIn';
 import MedicationChecklist from '../components/MedicationChecklist';
 import RecoveryGraph from '../components/RecoveryGraph';
+import RecoveryTracker from '../components/RecoveryTracker';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 
 const SupportPage = () => {
   const [selectedRecovery, setSelectedRecovery] = useState<string | null>(null);
@@ -242,125 +244,159 @@ const SupportPage = () => {
           <section className="mb-16">
             <AnimateIn delay={0.3}>
               <div className="flex items-center mb-8">
-                <MessageCircle className="w-8 h-8 text-primary mr-3" />
+                <Target className="w-8 h-8 text-primary mr-3" />
                 <h2 className="text-3xl font-heading font-bold text-foreground">
-                  Recovery Tracking & Check-in
+                  Recovery Tracking & Progress
                 </h2>
               </div>
             </AnimateIn>
 
-            <div className="grid lg:grid-cols-2 gap-8 mb-8">
-              {/* Medication Checklist */}
-              <AnimateIn delay={0.4}>
-                <MedicationChecklist onProgressUpdate={handleProgressUpdate} />
-              </AnimateIn>
+            <Tabs defaultValue="tracking" className="w-full">
+              <TabsList className="grid w-full grid-cols-3 mb-8">
+                <TabsTrigger value="tracking" className="flex items-center space-x-2">
+                  <Calendar className="w-4 h-4" />
+                  <span>Daily Tracking</span>
+                </TabsTrigger>
+                <TabsTrigger value="progress" className="flex items-center space-x-2">
+                  <MessageCircle className="w-4 h-4" />
+                  <span>Progress View</span>
+                </TabsTrigger>
+                <TabsTrigger value="medication" className="flex items-center space-x-2">
+                  <Pill className="w-4 h-4" />
+                  <span>Medication</span>
+                </TabsTrigger>
+              </TabsList>
 
-              {/* Recovery Graph */}
-              <AnimateIn delay={0.5}>
-                <RecoveryGraph currentProgress={recoveryProgress} />
-              </AnimateIn>
-            </div>
+              <TabsContent value="tracking" className="space-y-6">
+                <div className="grid lg:grid-cols-2 gap-8">
+                  {/* Recovery Tracker */}
+                  <AnimateIn delay={0.4}>
+                    <RecoveryTracker onProgressUpdate={handleProgressUpdate} />
+                  </AnimateIn>
 
-            {/* Recovery Check-in Chat */}
-            <AnimateIn delay={0.6}>
-              <Card className="glass-card max-w-2xl mx-auto">
-                <CardHeader className="text-center">
-                  <CardTitle className="text-xl font-heading">
-                    Daily Recovery Chat
-                  </CardTitle>
-                  <CardDescription className="font-body">
-                    Let us know how you're feeling today
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {!showChatResponses ? (
-                    <>
-                      {/* Initial Question */}
-                      <div className="bg-muted/50 rounded-lg p-4 border-l-4 border-primary">
-                        <p className="font-body text-foreground">
-                          "How is your recovery going today?"
-                        </p>
-                      </div>
+                  {/* Recovery Graph */}
+                  <AnimateIn delay={0.5}>
+                    <RecoveryGraph currentProgress={recoveryProgress} />
+                  </AnimateIn>
+                </div>
+              </TabsContent>
 
-                      {/* Quick Reply Options */}
-                      <div className="space-y-3">
-                        <p className="text-sm font-body text-muted-foreground text-center">
-                          Choose how you're feeling:
-                        </p>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                          <Button
-                            variant="outline"
-                            className="h-auto py-4 px-6 flex flex-col items-center space-y-2"
-                            onClick={() => handleRecoverySelect('better')}
-                          >
-                            <span className="text-2xl">🌟</span>
-                            <span className="font-body">Better</span>
-                          </Button>
-                          <Button
-                            variant="outline"
-                            className="h-auto py-4 px-6 flex flex-col items-center space-y-2"
-                            onClick={() => handleRecoverySelect('same')}
-                          >
-                            <span className="text-2xl">😐</span>
-                            <span className="font-body">Same</span>
-                          </Button>
-                          <Button
-                            variant="outline"
-                            className="h-auto py-4 px-6 flex flex-col items-center space-y-2"
-                            onClick={() => handleRecoverySelect('worse')}
-                          >
-                            <span className="text-2xl">😔</span>
-                            <span className="font-body">Worse</span>
-                          </Button>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      {/* User's Selection */}
-                      <div className="bg-primary/10 rounded-lg p-4 border-l-4 border-primary ml-auto max-w-xs">
-                        <p className="font-body text-foreground capitalize">
-                          {selectedRecovery}
-                        </p>
-                      </div>
+              <TabsContent value="progress" className="space-y-6">
+                <div className="grid lg:grid-cols-2 gap-8">
+                  {/* Recovery Graph */}
+                  <AnimateIn delay={0.4}>
+                    <RecoveryGraph currentProgress={recoveryProgress} />
+                  </AnimateIn>
 
-                      {/* AI Response */}
-                      {selectedRecovery && (
-                        <div className="bg-muted/50 rounded-lg p-4 border-l-4 border-secondary">
-                          <h4 className="font-heading font-semibold text-foreground mb-2">
-                            {recoveryResponses[selectedRecovery as keyof typeof recoveryResponses].title}
-                          </h4>
-                          <p className="font-body text-foreground mb-3">
-                            {recoveryResponses[selectedRecovery as keyof typeof recoveryResponses].message}
-                          </p>
-                          <div className="bg-secondary/10 rounded-lg p-3 border border-secondary/20">
-                            <p className="text-sm font-body text-foreground">
-                              💡 <strong>Tip:</strong> {recoveryResponses[selectedRecovery as keyof typeof recoveryResponses].tip}
-                            </p>
-                          </div>
-                        </div>
-                      )}
+                  {/* Recovery Check-in Chat */}
+                  <AnimateIn delay={0.5}>
+                    <Card className="glass-card">
+                      <CardHeader className="text-center">
+                        <CardTitle className="text-xl font-heading">
+                          Daily Recovery Chat
+                        </CardTitle>
+                        <CardDescription className="font-body">
+                          Let us know how you're feeling today
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-6">
+                        {!showChatResponses ? (
+                          <>
+                            {/* Initial Question */}
+                            <div className="bg-muted/50 rounded-lg p-4 border-l-4 border-primary">
+                              <p className="font-body text-foreground">
+                                "How is your recovery going today?"
+                              </p>
+                            </div>
 
-                      {/* Continue or Reset Chat */}
-                      <div className="flex justify-center space-x-3">
-                        <Button variant="outline" onClick={resetChat}>
-                          Check In Again
-                        </Button>
-                        {selectedRecovery === 'worse' && (
-                          <Button 
-                            className="bg-gradient-accent text-white"
-                            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                          >
-                            <ChevronRight className="w-4 h-4 mr-2" />
-                            Contact Doctor
-                          </Button>
+                            {/* Quick Reply Options */}
+                            <div className="space-y-3">
+                              <p className="text-sm font-body text-muted-foreground text-center">
+                                Choose how you're feeling:
+                              </p>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <Button
+                                  variant="outline"
+                                  className="h-auto py-4 px-6 flex flex-col items-center space-y-2"
+                                  onClick={() => handleRecoverySelect('better')}
+                                >
+                                  <span className="text-2xl">🌟</span>
+                                  <span className="font-body">Better</span>
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  className="h-auto py-4 px-6 flex flex-col items-center space-y-2"
+                                  onClick={() => handleRecoverySelect('same')}
+                                >
+                                  <span className="text-2xl">😐</span>
+                                  <span className="font-body">Same</span>
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  className="h-auto py-4 px-6 flex flex-col items-center space-y-2"
+                                  onClick={() => handleRecoverySelect('worse')}
+                                >
+                                  <span className="text-2xl">😔</span>
+                                  <span className="font-body">Worse</span>
+                                </Button>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            {/* User's Selection */}
+                            <div className="bg-primary/10 rounded-lg p-4 border-l-4 border-primary ml-auto max-w-xs">
+                              <p className="font-body text-foreground capitalize">
+                                {selectedRecovery}
+                              </p>
+                            </div>
+
+                            {/* AI Response */}
+                            {selectedRecovery && (
+                              <div className="bg-muted/50 rounded-lg p-4 border-l-4 border-secondary">
+                                <h4 className="font-heading font-semibold text-foreground mb-2">
+                                  {recoveryResponses[selectedRecovery as keyof typeof recoveryResponses].title}
+                                </h4>
+                                <p className="font-body text-foreground mb-3">
+                                  {recoveryResponses[selectedRecovery as keyof typeof recoveryResponses].message}
+                                </p>
+                                <div className="bg-secondary/10 rounded-lg p-3 border border-secondary/20">
+                                  <p className="text-sm font-body text-foreground">
+                                    💡 <strong>Tip:</strong> {recoveryResponses[selectedRecovery as keyof typeof recoveryResponses].tip}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Continue or Reset Chat */}
+                            <div className="flex justify-center space-x-3">
+                              <Button variant="outline" onClick={resetChat}>
+                                Check In Again
+                              </Button>
+                              {selectedRecovery === 'worse' && (
+                                <Button 
+                                  className="bg-gradient-accent text-white"
+                                  onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                                >
+                                  <ChevronRight className="w-4 h-4 mr-2" />
+                                  Contact Doctor
+                                </Button>
+                              )}
+                            </div>
+                          </>
                         )}
-                      </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            </AnimateIn>
+                      </CardContent>
+                    </Card>
+                  </AnimateIn>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="medication" className="space-y-6">
+                <AnimateIn delay={0.4}>
+                  <MedicationChecklist onProgressUpdate={handleProgressUpdate} />
+                </AnimateIn>
+              </TabsContent>
+            </Tabs>
           </section>
         </div>
       </main>

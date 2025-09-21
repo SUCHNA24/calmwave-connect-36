@@ -5,6 +5,9 @@ import Navbar from '../components/Navbar';
 import ParticleCursor from '../components/ParticleCursor';
 import AnimateIn from '../components/AnimateIn';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '../components/ui/chart';
+import { useMoodEntries } from '../hooks/useSupabase';
+import { useAuth } from '../hooks/useAuth';
+import { Button } from '../components/ui/button';
 
 interface MoodEntry {
   id: string;
@@ -26,11 +29,14 @@ const moodData = [
 ];
 
 const MoodPage = () => {
-  const [moodEntries, setMoodEntries] = useState<MoodEntry[]>([]);
+  const { user } = useAuth();
+  const { moodEntries, loading, error, addMoodEntry } = useMoodEntries();
   const [currentMoodLevel, setCurrentMoodLevel] = useState(5);
   const [selectedEmotions, setSelectedEmotions] = useState<string[]>([]);
   const [selectedTriggers, setSelectedTriggers] = useState<string[]>([]);
   const [additionalThoughts, setAdditionalThoughts] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [localMoodEntries, setLocalMoodEntries] = useState<MoodEntry[]>([]);
 
   const emotions = [
     'खुश (Happy)', 'उदास (Sad)', 'चिंतित (Anxious)', 'तनावग्रस्त (Stressed)', 
@@ -60,7 +66,12 @@ const MoodPage = () => {
     );
   };
 
-  const handleSaveMoodEntry = () => {
+  const handleSaveMoodEntry = async () => {
+    if (selectedEmotions.length === 0) {
+      alert('Please select at least one emotion');
+      return;
+    }
+
     const newEntry: MoodEntry = {
       id: Date.now().toString(),
       date: new Date(),
@@ -70,7 +81,29 @@ const MoodPage = () => {
       additionalThoughts
     };
 
-    setMoodEntries([newEntry, ...moodEntries]);
+    // Save locally first
+    setLocalMoodEntries(prev => [newEntry, ...prev]);
+
+    // Try to save to database if user is authenticated
+    if (user) {
+      try {
+        setIsSubmitting(true);
+        await addMoodEntry({
+          mood_level: currentMoodLevel,
+          emotions: selectedEmotions,
+          triggers: selectedTriggers,
+          additional_thoughts: additionalThoughts
+        });
+        alert('Mood entry saved successfully!');
+      } catch (err) {
+        console.error('Error saving to database:', err);
+        alert('Saved locally! Sign in to sync across devices.');
+      } finally {
+        setIsSubmitting(false);
+      }
+    } else {
+      alert('Mood entry saved locally! Sign in to sync across devices.');
+    }
     
     // Reset form
     setCurrentMoodLevel(5);
@@ -79,8 +112,10 @@ const MoodPage = () => {
     setAdditionalThoughts('');
   };
 
-  const averageMood = moodEntries.length > 0 
-    ? (moodEntries.reduce((sum, entry) => sum + entry.moodLevel, 0) / moodEntries.length).toFixed(1)
+  // Use local entries if available, otherwise use database entries
+  const displayEntries = localMoodEntries.length > 0 ? localMoodEntries : moodEntries;
+  const averageMood = displayEntries.length > 0 
+    ? (displayEntries.reduce((sum, entry) => sum + (entry.moodLevel || entry.mood_level), 0) / displayEntries.length).toFixed(1)
     : '0.0';
 
   const getMoodLabel = (level: number) => {
@@ -99,6 +134,18 @@ const MoodPage = () => {
     return 'text-primary';
   };
 
+  // Show loading state only if we're actually loading data
+  if (loading && user) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading your data...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <ParticleCursor />
@@ -115,6 +162,11 @@ const MoodPage = () => {
                 Track your daily emotions and visualize your mental wellness journey. 
                 अपनी दैनिक भावनाओं को ट्रैक करें और अपनी मानसिक स्वास्थ्य यात्रा को देखें।
               </p>
+              {error && (
+                <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-500">
+                  Error: {error}
+                </div>
+              )}
             </div>
           </AnimateIn>
 
@@ -208,13 +260,16 @@ const MoodPage = () => {
                   />
                 </div>
 
-                <button
+                <Button
                   onClick={handleSaveMoodEntry}
+                  disabled={isSubmitting}
                   className="btn-primary flex items-center space-x-2"
                 >
                   <Save className="w-5 h-5" />
-                  <span>Save Mood Entry / मूड एंट्री सेव करें</span>
-                </button>
+                  <span>
+                    {isSubmitting ? 'Saving...' : 'Save Mood Entry / मूड एंट्री सेव करें'}
+                  </span>
+                </Button>
               </div>
             </AnimateIn>
 
@@ -261,17 +316,17 @@ const MoodPage = () => {
                   >
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart
-                        data={moodEntries.length > 0 
-                          ? moodEntries
+                        data={displayEntries.length > 0 
+                          ? displayEntries
                               .slice(0, 10)
                               .reverse()
                               .map((entry, index) => ({
-                                date: entry.date.toLocaleDateString('en-US', { 
+                                date: new Date(entry.date || entry.entry_date).toLocaleDateString('en-US', { 
                                   month: 'short', 
                                   day: 'numeric' 
                                 }),
-                                mood: entry.moodLevel,
-                                label: getMoodLabel(entry.moodLevel)
+                                mood: entry.moodLevel || entry.mood_level,
+                                label: getMoodLabel(entry.moodLevel || entry.mood_level)
                               }))
                           : moodData.map(item => ({
                               date: item.day,
@@ -323,8 +378,8 @@ const MoodPage = () => {
                 <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="text-center p-3 bg-primary/10 rounded-lg">
                     <div className="text-2xl font-bold text-primary">
-                      {moodEntries.length > 0 
-                        ? Math.max(...moodEntries.map(e => e.moodLevel))
+                      {displayEntries.length > 0 
+                        ? Math.max(...displayEntries.map(e => e.moodLevel || e.mood_level))
                         : Math.max(...moodData.map(e => e.mood))
                       }
                     </div>
@@ -332,8 +387,8 @@ const MoodPage = () => {
                   </div>
                   <div className="text-center p-3 bg-secondary/10 rounded-lg">
                     <div className="text-2xl font-bold text-secondary">
-                      {moodEntries.length > 0 
-                        ? Math.min(...moodEntries.map(e => e.moodLevel))
+                      {displayEntries.length > 0 
+                        ? Math.min(...displayEntries.map(e => e.moodLevel || e.mood_level))
                         : Math.min(...moodData.map(e => e.mood))
                       }
                     </div>
@@ -341,9 +396,9 @@ const MoodPage = () => {
                   </div>
                   <div className="text-center p-3 bg-accent/10 rounded-lg">
                     <div className="text-2xl font-bold text-accent-foreground">
-                      {moodEntries.length >= 2 ? 
-                        (moodEntries[0].moodLevel > moodEntries[1].moodLevel ? '↗️' : 
-                         moodEntries[0].moodLevel < moodEntries[1].moodLevel ? '↘️' : '→') 
+                      {displayEntries.length >= 2 ? 
+                        ((displayEntries[0].moodLevel || displayEntries[0].mood_level) > (displayEntries[1].moodLevel || displayEntries[1].mood_level) ? '↗️' : 
+                         (displayEntries[0].moodLevel || displayEntries[0].mood_level) < (displayEntries[1].moodLevel || displayEntries[1].mood_level) ? '↘️' : '→') 
                         : '→'
                       }
                     </div>
@@ -361,7 +416,7 @@ const MoodPage = () => {
                   <span>Recent Entries / हाल की एंट्रीज़</span>
                 </h3>
 
-                {moodEntries.length === 0 ? (
+                {displayEntries.length === 0 ? (
                   <div className="text-center py-8">
                     <Smile className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
                     <p className="text-muted-foreground font-body">
@@ -371,45 +426,45 @@ const MoodPage = () => {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {moodEntries.slice(0, 5).map((entry) => (
+                    {displayEntries.slice(0, 5).map((entry) => (
                       <div key={entry.id} className="bg-glass-card border border-glass-border rounded-xl p-4">
                         <div className="flex justify-between items-start mb-3">
                           <div className="flex items-center space-x-3">
-                            <div className={`text-2xl font-bold ${getMoodColor(entry.moodLevel)}`}>
-                              {entry.moodLevel}
+                            <div className={`text-2xl font-bold ${getMoodColor(entry.moodLevel || entry.mood_level)}`}>
+                              {entry.moodLevel || entry.mood_level}
                             </div>
                             <div>
-                              <div className={`font-semibold ${getMoodColor(entry.moodLevel)}`}>
-                                {getMoodLabel(entry.moodLevel)}
+                              <div className={`font-semibold ${getMoodColor(entry.moodLevel || entry.mood_level)}`}>
+                                {getMoodLabel(entry.moodLevel || entry.mood_level)}
                               </div>
                               <div className="text-sm text-muted-foreground">
-                                {entry.date.toLocaleDateString()}
+                                {new Date(entry.date || entry.entry_date).toLocaleDateString()}
                               </div>
                             </div>
                           </div>
                         </div>
 
-                        {entry.emotions.length > 0 && (
+                        {(entry.emotions || entry.emotions) && (entry.emotions || entry.emotions).length > 0 && (
                           <div className="mb-2">
                             <span className="text-sm font-semibold text-foreground">Emotions: </span>
                             <span className="text-sm text-muted-foreground">
-                              {entry.emotions.join(', ')}
+                              {(entry.emotions || entry.emotions).join(', ')}
                             </span>
                           </div>
                         )}
 
-                        {entry.triggers.length > 0 && (
+                        {(entry.triggers || entry.triggers) && (entry.triggers || entry.triggers).length > 0 && (
                           <div className="mb-2">
                             <span className="text-sm font-semibold text-foreground">Triggers: </span>
                             <span className="text-sm text-muted-foreground">
-                              {entry.triggers.join(', ')}
+                              {(entry.triggers || entry.triggers).join(', ')}
                             </span>
                           </div>
                         )}
 
-                        {entry.additionalThoughts && (
+                        {(entry.additionalThoughts || entry.additional_thoughts) && (
                           <div className="text-sm text-muted-foreground italic">
-                            "{entry.additionalThoughts}"
+                            "{entry.additionalThoughts || entry.additional_thoughts}"
                           </div>
                         )}
                       </div>

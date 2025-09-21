@@ -1,7 +1,10 @@
-import { useState } from 'react';
-import { Send, Bot, User } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Send, Bot, User, Loader2 } from 'lucide-react';
 import AnimateIn from '../AnimateIn';
 import EmojiPicker from '../EmojiPicker';
+import { geminiService } from '../../services/geminiService';
+import { useChatConversations } from '../../hooks/useSupabase';
+import { useAuth } from '../../hooks/useAuth';
 
 interface Message {
   id: string;
@@ -11,44 +14,120 @@ interface Message {
 }
 
 export default function ChatSection() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      text: '🌟 नमस्ते! Hello! I\'m here to support you. How are you feeling today? 😊 आप कैसा महसूस कर रहे हैं आज? 💙',
-      sender: 'ai',
-      timestamp: new Date()
-    }
-  ]);
+  const { user } = useAuth();
+  const { 
+    currentConversation, 
+    messages, 
+    loading, 
+    error, 
+    addMessage, 
+    startNewConversation,
+    setCurrentConversation 
+  } = useChatConversations();
+  
   const [inputValue, setInputValue] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [localMessages, setLocalMessages] = useState<Message[]>([]);
 
-  const handleSendMessage = () => {
+  // Initialize conversation on mount
+  useEffect(() => {
+    if (user && !currentConversation) {
+      startNewConversation();
+    }
+  }, [user, currentConversation, startNewConversation]);
+
+  // Convert database messages to local format
+  useEffect(() => {
+    if (messages && messages.length > 0) {
+      const formattedMessages = messages.map(msg => ({
+        id: msg.id,
+        text: msg.content,
+        sender: msg.sender as 'user' | 'ai',
+        timestamp: new Date(msg.created_at)
+      }));
+      setLocalMessages(formattedMessages);
+    } else if (user && messages.length === 0) {
+      // Show welcome message for new users
+      setLocalMessages([{
+        id: 'welcome',
+        text: '🌟 नमस्ते! Hello! I\'m here to support you. How are you feeling today? 😊 आप कैसा महसूस कर रहे हैं आज? 💙',
+        sender: 'ai',
+        timestamp: new Date()
+      }]);
+    }
+  }, [messages, user]);
+
+  const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
 
-    const newMessage: Message = {
+    const userMessage = inputValue.trim();
+    setInputValue('');
+
+    // Show user message immediately
+    const userMsg: Message = {
       id: Date.now().toString(),
-      text: inputValue,
+      text: userMessage,
       sender: 'user',
       timestamp: new Date()
     };
+    setLocalMessages(prev => [...prev, userMsg]);
 
-    setMessages(prev => [...prev, newMessage]);
-    setInputValue('');
-
-    // Simulate AI response
-    setTimeout(() => {
-      const aiResponse: Message = {
+    try {
+      // Generate AI response
+      setIsGenerating(true);
+      const aiResponse = await geminiService.generateMentalHealthResponse(userMessage);
+      
+      // Show AI response
+      const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
-        text: '💝 Thank you for sharing that with me. It takes courage to open up about your feelings. 🤗 I\'m here to listen and support you through this. Would you like to tell me more about what\'s on your mind? 🌈 धन्यवाद आपने मेरे साथ साझा किया।',
+        text: aiResponse,
         sender: 'ai',
         timestamp: new Date()
       };
-      setMessages(prev => [...prev, aiResponse]);
-    }, 1000);
+      setLocalMessages(prev => [...prev, aiMsg]);
+
+      // Try to save to database if user is authenticated and conversation exists
+      if (user && currentConversation) {
+        try {
+          await addMessage(currentConversation.id, userMessage, 'user');
+          await addMessage(currentConversation.id, aiResponse, 'ai');
+        } catch (dbError) {
+          console.error('Error saving to database:', dbError);
+          // Continue without showing error to user since chat still works
+        }
+      }
+
+    } catch (error) {
+      console.error('Error generating AI response:', error);
+      
+      // Show error message
+      const errorMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        text: 'Sorry, I encountered an error. Please try again. 😔',
+        sender: 'ai',
+        timestamp: new Date()
+      };
+      setLocalMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleEmojiSelect = (emoji: string) => {
     setInputValue(prev => prev + emoji);
   };
+
+  // Show loading state only if we're actually loading data
+  if (loading && user) {
+    return (
+      <section id="chat" className="py-20 px-4">
+        <div className="max-w-4xl mx-auto text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading chat...</p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section id="chat" className="py-20 px-4">
@@ -63,6 +142,11 @@ export default function ChatSection() {
               <br />
               हमारे सांस्कृतिक रूप से जागरूक एआई साथी के साथ गोपनीय बातचीत
             </p>
+            {error && (
+              <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-500">
+                Error: {error}
+              </div>
+            )}
           </div>
         </AnimateIn>
 
@@ -83,7 +167,7 @@ export default function ChatSection() {
 
             {/* Chat Messages */}
             <div className="h-96 overflow-y-auto p-4 space-y-4">
-              {messages.map((message) => (
+              {localMessages.map((message) => (
                 <div
                   key={message.id}
                   className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -128,9 +212,14 @@ export default function ChatSection() {
                 <EmojiPicker onEmojiSelect={handleEmojiSelect} />
                 <button
                   onClick={handleSendMessage}
-                  className="bg-gradient-accent text-white px-4 py-2 rounded-xl font-medium hover:shadow-lg hover:scale-105 transition-all duration-300"
+                  disabled={isGenerating || !inputValue.trim()}
+                  className="bg-gradient-accent text-white px-4 py-2 rounded-xl font-medium hover:shadow-lg hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Send className="w-5 h-5" />
+                  {isGenerating ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Send className="w-5 h-5" />
+                  )}
                 </button>
               </div>
             </div>

@@ -3,6 +3,9 @@ import { BookOpen, Plus, Calendar, Search, Edit3, Trash2 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import ParticleCursor from '../components/ParticleCursor';
 import AnimateIn from '../components/AnimateIn';
+import { useJournalEntries } from '../hooks/useSupabase';
+import { useAuth } from '../hooks/useAuth';
+import { Button } from '../components/ui/button';
 
 interface JournalEntry {
   id: string;
@@ -13,22 +16,21 @@ interface JournalEntry {
 }
 
 const JournalPage = () => {
-  const [entries, setEntries] = useState<JournalEntry[]>([
-    {
-      id: '1',
-      title: 'My First Journal Entry',
-      content: 'Today was a good day. I felt more positive about things and managed to complete my assignments on time. The AI chat support really helped me understand my feelings better.',
-      date: new Date(Date.now() - 86400000),
-      mood: 'good'
-    }
-  ]);
+  const { user } = useAuth();
+  const { journalEntries, loading, error, addJournalEntry, updateJournalEntry, deleteJournalEntry } = useJournalEntries();
   const [showNewEntry, setShowNewEntry] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
   const [selectedMood, setSelectedMood] = useState<JournalEntry['mood']>('okay');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<string | null>(null);
+  const [localEntries, setLocalEntries] = useState<JournalEntry[]>([]);
 
-  const handleSaveEntry = () => {
-    if (!newTitle.trim() || !newContent.trim()) return;
+  const handleSaveEntry = async () => {
+    if (!newTitle.trim() || !newContent.trim()) {
+      alert('Please fill in both title and content');
+      return;
+    }
 
     const newEntry: JournalEntry = {
       id: Date.now().toString(),
@@ -38,10 +40,52 @@ const JournalPage = () => {
       mood: selectedMood
     };
 
-    setEntries([newEntry, ...entries]);
+    // Save locally first
+    setLocalEntries(prev => [newEntry, ...prev]);
+
+    // Try to save to database if user is authenticated
+    if (user) {
+      try {
+        setIsSubmitting(true);
+        await addJournalEntry({
+          title: newTitle,
+          content: newContent,
+          mood: selectedMood
+        });
+        alert('Journal entry saved successfully!');
+      } catch (err) {
+        console.error('Error saving to database:', err);
+        alert('Saved locally! Sign in to sync across devices.');
+      } finally {
+        setIsSubmitting(false);
+      }
+    } else {
+      alert('Journal entry saved locally! Sign in to sync across devices.');
+    }
+    
     setNewTitle('');
     setNewContent('');
     setShowNewEntry(false);
+  };
+
+  const handleDeleteEntry = async (id: string) => {
+    if (confirm('Are you sure you want to delete this entry?')) {
+      // Delete locally first
+      setLocalEntries(prev => prev.filter(entry => entry.id !== id));
+      
+      // Try to delete from database if user is authenticated
+      if (user) {
+        try {
+          await deleteJournalEntry(id);
+          alert('Journal entry deleted successfully!');
+        } catch (err) {
+          console.error('Error deleting from database:', err);
+          alert('Deleted locally! Sign in to sync across devices.');
+        }
+      } else {
+        alert('Journal entry deleted locally! Sign in to sync across devices.');
+      }
+    }
   };
 
   const getMoodColor = (mood: JournalEntry['mood']) => {
@@ -54,6 +98,21 @@ const JournalPage = () => {
       default: return 'text-muted-foreground';
     }
   };
+
+  // Use local entries if available, otherwise use database entries
+  const displayEntries = localEntries.length > 0 ? localEntries : journalEntries;
+
+  // Show loading state only if we're actually loading data
+  if (loading && user) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading your data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -71,6 +130,11 @@ const JournalPage = () => {
                 A safe space to express your thoughts, feelings, and reflect on your mental wellness journey.
                 अपने विचारों, भावनाओं को व्यक्त करने और अपनी मानसिक स्वास्थ्य यात्रा पर विचार करने के लिए एक सुरक्षित स्थान।
               </p>
+              {error && (
+                <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-500">
+                  Error: {error}
+                </div>
+              )}
             </div>
           </AnimateIn>
 
@@ -145,18 +209,20 @@ const JournalPage = () => {
                     </div>
 
                     <div className="flex space-x-3">
-                      <button
+                      <Button
                         onClick={handleSaveEntry}
+                        disabled={isSubmitting}
                         className="btn-primary"
                       >
-                        Save Entry
-                      </button>
-                      <button
+                        {isSubmitting ? 'Saving...' : 'Save Entry'}
+                      </Button>
+                      <Button
                         onClick={() => setShowNewEntry(false)}
+                        variant="outline"
                         className="btn-secondary"
                       >
                         Cancel
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -165,7 +231,7 @@ const JournalPage = () => {
 
             {/* Journal Entries */}
             <div className="space-y-6">
-              {entries.map((entry, index) => (
+              {displayEntries.map((entry, index) => (
                 <AnimateIn key={entry.id} delay={0.1 * index}>
                   <div className="glass-card p-6">
                     <div className="flex justify-between items-start mb-4">
@@ -176,7 +242,7 @@ const JournalPage = () => {
                         <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                           <div className="flex items-center space-x-1">
                             <Calendar className="w-4 h-4" />
-                            <span>{entry.date.toLocaleDateString()}</span>
+                            <span>{new Date(entry.date || entry.entry_date).toLocaleDateString()}</span>
                           </div>
                           <div className="flex items-center space-x-1">
                             <div className={`w-2 h-2 rounded-full ${getMoodColor(entry.mood).replace('text-', 'bg-')}`}></div>
@@ -185,10 +251,16 @@ const JournalPage = () => {
                         </div>
                       </div>
                       <div className="flex space-x-2">
-                        <button className="p-2 text-muted-foreground hover:text-primary transition-colors">
+                        <button 
+                          onClick={() => setEditingEntry(entry.id)}
+                          className="p-2 text-muted-foreground hover:text-primary transition-colors"
+                        >
                           <Edit3 className="w-4 h-4" />
                         </button>
-                        <button className="p-2 text-muted-foreground hover:text-red-500 transition-colors">
+                        <button 
+                          onClick={() => handleDeleteEntry(entry.id)}
+                          className="p-2 text-muted-foreground hover:text-red-500 transition-colors"
+                        >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -201,7 +273,7 @@ const JournalPage = () => {
                 </AnimateIn>
               ))}
 
-              {entries.length === 0 && !showNewEntry && (
+              {journalEntries.length === 0 && !showNewEntry && (
                 <AnimateIn>
                   <div className="text-center py-12">
                     <BookOpen className="w-16 h-16 text-muted-foreground mx-auto mb-4" />

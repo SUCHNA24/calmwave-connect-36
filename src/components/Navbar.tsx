@@ -1,10 +1,63 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Menu, X, Heart, MessageCircle, BarChart3, BookOpen, Phone, Home, HeartHandshake } from 'lucide-react';
+import { Menu, X, Heart, MessageCircle, BarChart3, BookOpen, Phone, Home, HeartHandshake, LogOut, User } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
+import { useAuth } from '../hooks/useAuth';
+import { Button } from './ui/button';
+import { supabase } from '../integrations/supabase/client';
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const { user, signOut } = useAuth();
+
+  // Fetch user profile to get the name
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!user) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .single();
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error fetching profile:', error);
+        } else if (data) {
+          setUserProfile(data);
+        }
+      } catch (err) {
+        console.error('Error fetching user profile:', err);
+      }
+    };
+
+    fetchUserProfile();
+  }, [user]);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      setIsMenuOpen(false);
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
+  // Get display name (prefer full_name, fallback to email username)
+  const getDisplayName = () => {
+    if (userProfile?.full_name) {
+      return userProfile.full_name;
+    }
+    if (user?.user_metadata?.full_name) {
+      return user.user_metadata.full_name;
+    }
+    if (user?.email) {
+      return user.email.split('@')[0]; // Get username part of email
+    }
+    return 'User';
+  };
 
   const navItems = [
     { href: '/', label: 'Home', icon: Home },
@@ -43,6 +96,35 @@ export default function Navbar() {
             <Phone className="w-4 h-4" />
             <span>Crisis Support</span>
           </Link>
+          
+          {user ? (
+            <div className="flex items-center space-x-2">
+              <Link
+                to="/profile"
+                className="flex items-center space-x-2 text-sm text-muted-foreground hover:text-primary transition-colors"
+              >
+                <User className="w-4 h-4" />
+                <span>{getDisplayName()}</span>
+              </Link>
+              <Button
+                onClick={handleSignOut}
+                variant="outline"
+                size="sm"
+                className="flex items-center space-x-1"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Sign Out</span>
+              </Button>
+            </div>
+          ) : (
+            <Link
+              to="/auth"
+              className="bg-primary text-white px-4 py-2 rounded-xl font-medium hover:shadow-lg hover:scale-105 transition-all duration-300"
+            >
+              Sign In
+            </Link>
+          )}
+          
           <ThemeToggle />
         </div>
 
@@ -81,6 +163,36 @@ export default function Navbar() {
               <Phone className="w-4 h-4" />
               <span>Crisis Support</span>
             </Link>
+            
+            {user ? (
+              <div className="pt-4 border-t border-glass-border">
+                <Link
+                  to="/profile"
+                  className="flex items-center space-x-2 p-2 text-sm text-muted-foreground hover:text-primary transition-colors mb-3"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <User className="w-4 h-4" />
+                  <span>{getDisplayName()}</span>
+                </Link>
+                <Button
+                  onClick={handleSignOut}
+                  variant="outline"
+                  className="w-full flex items-center space-x-2"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Sign Out</span>
+                </Button>
+              </div>
+            ) : (
+              <Link
+                to="/auth"
+                className="bg-primary text-white px-4 py-2 rounded-xl font-medium hover:shadow-lg hover:scale-105 transition-all duration-300 flex items-center space-x-2 justify-center"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                <User className="w-4 h-4" />
+                <span>Sign In</span>
+              </Link>
+            )}
           </div>
         </div>
       )}
