@@ -38,8 +38,10 @@ export default function Navbar() {
 
   const handleSignOut = async () => {
     try {
-      await signOut();
+      const { error } = await signOut();
+      if (error) throw error;
       setIsMenuOpen(false);
+      window.location.href = '/'; // Redirect to home page after signout
     } catch (error) {
       console.error('Error signing out:', error);
     }
