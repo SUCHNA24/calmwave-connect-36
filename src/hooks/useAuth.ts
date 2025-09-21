@@ -79,8 +79,25 @@ export const useAuth = () => {
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    return { error };
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Error during signout:', error);
+        return { error };
+      }
+      
+      // Force clear user state
+      setUser(null);
+      setSession(null);
+      
+      // Clear any local storage items related to auth
+      localStorage.removeItem('supabase.auth.token');
+      
+      return { error: null };
+    } catch (err) {
+      console.error('Exception during signout:', err);
+      return { error: err instanceof Error ? err : new Error('Unknown error during signout') };
+    }
   };
 
   return {
